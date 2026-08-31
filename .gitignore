@@ -1,0 +1,21 @@
+# ---- Python ----
+venv/
+__pycache__/
+*.pyc
+
+# ---- 密钥与本地配置（绝不入库）----
+agent.env
+
+# ---- 数据：只入库主数据文件，排除采集缓存与历史备份 ----
+data/raw/
+data/processed/
+data/cache/
+data/*_backup*.csv
+data/*_simulated_backup.csv
+data/.ebay_storage_state.json
+logs/
+
+# ---- 编辑器 / 工具 ----
+.idea/
+.vscode/
+.claude/
