@@ -1287,6 +1287,113 @@ def render_data_update():
 
 
 # ============================================================
+# 侧边栏：AI 助手 API Key 快捷配置
+# ============================================================
+AGENT_ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent.env")
+
+# 常见 OpenAI 兼容服务商预设
+LLM_PRESETS = {
+    "DeepSeek（默认）": ("https://api.deepseek.com", "deepseek-chat"),
+    "Kimi (Moonshot)": ("https://api.moonshot.cn/v1", "moonshot-v1-8k"),
+    "通义千问": ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-max"),
+    "智谱 GLM": ("https://open.bigmodel.cn/api/paas/v4", "glm-4-flash"),
+    "OpenAI 官方": ("https://api.openai.com/v1", "gpt-4o-mini"),
+    "自定义": ("", ""),
+}
+
+
+def _read_agent_env() -> dict:
+    """读取 agent.env 的 KEY=VALUE（忽略注释行）"""
+    cfg = {}
+    try:
+        with open(AGENT_ENV_PATH, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, _, v = line.partition("=")
+                cfg[k.strip()] = v.strip().strip('"').strip("'")
+    except OSError:
+        pass
+    return cfg
+
+
+def _write_agent_env(api_key: str, base_url: str, model: str):
+    """写回 agent.env（保留环境变量优先的语义，见 src/assistant/agent.py）"""
+    content = (
+        "# AI 估价助手 LLM 配置（由应用界面生成；支持任何 OpenAI 兼容接口）\n"
+        "# 注意：PowerShell 中手动设置的环境变量优先于本文件。\n"
+        f"OPENAI_API_KEY={api_key}\n"
+        f"OPENAI_BASE_URL={base_url}\n"
+        f"AGENT_MODEL={model}\n"
+    )
+    with open(AGENT_ENV_PATH, "w", encoding="utf-8") as f:
+        f.write(content)
+
+
+def render_api_key_panel():
+    """渲染侧边栏 — API Key 快捷配置：粘贴即生效，无需手动编辑配置文件。"""
+    file_cfg = _read_agent_env()
+    # 环境变量（含本次会话内通过界面写入的）优先于文件
+    cur_key = os.environ.get("OPENAI_API_KEY", "").strip() or file_cfg.get("OPENAI_API_KEY", "")
+    cur_base = os.environ.get("OPENAI_BASE_URL", "").strip() or file_cfg.get("OPENAI_BASE_URL", "")
+    cur_model = os.environ.get("AGENT_MODEL", "").strip() or file_cfg.get("AGENT_MODEL", "")
+
+    with st.sidebar:
+        st.markdown("---")
+        with st.expander("🔑 AI 助手 API Key", expanded=False):
+            if cur_key:
+                st.markdown(
+                    f"当前状态：✅ 已配置 `{cur_key[:6]}…{cur_key[-4:]}`"
+                    f"（{cur_model or '默认模型'}）")
+            else:
+                st.markdown("当前状态：⚠️ 未配置，AI 助手处于降级模式")
+
+            preset = st.selectbox("服务商", list(LLM_PRESETS.keys()),
+                                  index=0, key="llm_preset")
+            preset_base, preset_model = LLM_PRESETS[preset]
+
+            default_base = preset_base or cur_base or "https://api.deepseek.com"
+            default_model = preset_model or cur_model or "deepseek-chat"
+            base_url = st.text_input("接口地址 (Base URL)", value=default_base,
+                                     key="llm_base_url")
+            model = st.text_input("模型名", value=default_model, key="llm_model")
+            api_key = st.text_input("API Key", value="", type="password",
+                                    key="llm_api_key",
+                                    placeholder="sk-粘贴到这里，不会明文显示")
+
+            if st.button("💾 保存并启用", key="btn_save_key",
+                         use_container_width=True, type="primary"):
+                key = (api_key or "").strip()
+                if not key:
+                    st.error("请先粘贴 API Key 再保存。")
+                else:
+                    try:
+                        _write_agent_env(key, base_url.strip(), model.strip())
+                        # 立即注入当前进程：新创建的助手实例即刻可用，无需重启
+                        os.environ["OPENAI_API_KEY"] = key
+                        os.environ["OPENAI_BASE_URL"] = base_url.strip()
+                        os.environ["AGENT_MODEL"] = model.strip()
+                        st.success("✅ 已保存到 agent.env 并即时生效，可直接使用 AI 助手。")
+                    except OSError as e:
+                        st.error(f"写入 agent.env 失败: {e}")
+
+            if cur_key and st.button("🗑️ 清除已保存的 Key", key="btn_clear_key",
+                                     use_container_width=True):
+                try:
+                    _write_agent_env("", cur_base or "https://api.deepseek.com",
+                                     cur_model or "deepseek-chat")
+                    os.environ.pop("OPENAI_API_KEY", None)
+                    st.info("已清除。AI 助手回到降级模式。")
+                    st.rerun()
+                except OSError as e:
+                    st.error(f"清除失败: {e}")
+
+            st.caption("Key 只保存在本机 agent.env，不会上传；也可在 PowerShell 中运行 "
+                       "`scripts\\set_api_key.ps1` 快捷设置。")
+
+
+# ============================================================
 # 通用 UI 小组件
 # ============================================================
 def section_label(num: str, icon: str, text: str):
@@ -1945,12 +2052,15 @@ def main():
             st.info("请先运行 `python train.py` 训练模型，然后再启动 Streamlit。")
             st.stop()
 
-    # ---- 侧边栏：品牌标识 → 卡淘真实成交参考 → 数据更新 ----
+    # ---- 侧边栏：品牌标识 → 卡淘真实成交参考 → 数据更新 → API Key ----
     render_sidebar_brand()
     render_sidebar_samples()
 
     # ---- 侧边栏：一键采集最新数据并重训模型 ----
     render_data_update()
+
+    # ---- 侧边栏：AI 助手 API Key 快捷配置 ----
+    render_api_key_panel()
 
     st.success("✅ 模型已就绪 — 按顶部三步操作：选择卡片 → 开始评估 → 查看结果；"
                "也可以从侧边栏选择参考样本快速体验")

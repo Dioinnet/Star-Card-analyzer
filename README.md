@@ -49,6 +49,12 @@ streamlit run app.py
 
 不配置也可使用——助手自动降级为配置引导模式。
 
+**快捷配置（二选一）**：
+- 界面：启动应用 → 左侧边栏「🔑 AI 助手 API Key」→ 选服务商、粘贴 Key → 保存即生效
+- PowerShell：运行 `powershell -File scripts\set_api_key.ps1`，按提示粘贴 Key
+
+传统方式（手动编辑 `agent.env`）：
+
 ```bash
 # 复制配置模板（Windows: copy agent.env.example agent.env）
 cp agent.env.example agent.env
