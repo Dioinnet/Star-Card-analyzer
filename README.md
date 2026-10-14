@@ -1,5 +1,9 @@
 # 球星卡价值分析系统 (Star Card Analyzer)
 
+<p align="center">
+  <img src="assets/app_icon.png" alt="Star Card Analyzer" width="160">
+</p>
+
 基于 XGBoost 的球星卡定价系统：解析卡片特征（球员/系列/折射/签字/物料/评级），
 结合 eBay / CardHobby（卡淘）真实市场数据训练定价模型，提供 Web 界面估价、
 卡淘真实成交参考和 AI 智能助手。
@@ -7,6 +11,8 @@
 **功能亮点：**
 - 🃏 **卡片估价**：填写卡片属性（球员/系列/年份/折射/签字/物料/评级），XGBoost + SHAP 给出预估价格、置信区间与特征归因
 - 📊 **卡淘真实成交参考**：右侧展示卡淘（CardHobby）近期真实成交，可翻页浏览同价位能买到什么
+- 🔄 **一键更新数据**：左侧边栏点击按钮即可在线采集最新成交数据并重训模型，无需命令行
+- 🖥️ **桌面快捷启动**：双击桌面图标 / `scripts\start_app.bat` 一键打开应用
 - 🤖 **AI 估价助手**：对话式评估卡片、识别冷门球员、查询卡淘成交（可选接入 OpenAI 兼容 LLM，如 DeepSeek）
 - 🔌 **REST API**：`/evaluate` 估价、`/api/agent/chat` AI 助手对话，方便接入其他应用
 
@@ -32,7 +38,12 @@ streamlit run app.py
 ```
 
 浏览器打开 **http://localhost:8501** 即可使用。左侧选择参考卡片或填写属性 → 点击「开始评估」。
-（Windows 也可双击 `scripts\start_app.bat` 启动）
+（Windows 也可双击 `scripts\start_app.bat` 启动；可为其创建桌面快捷方式，日常使用双击即开）
+
+### 更新数据（界面内一键完成）
+
+打开左侧边栏的「🔄 更新数据（采集 + 重训）」面板，点击「🚀 开始更新数据」即可在线采集
+卡淘 / eBay 最新成交并重训模型，全程进度可视、无需命令行。命令行方式见下文「可选：更新数据与重训模型」。
 
 ## 启用 AI 估价助手（可选，需自备 LLM API Key）
 
