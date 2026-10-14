@@ -1068,6 +1068,81 @@ def render_sidebar_samples():
 
 
 # ============================================================
+# 侧边栏：一键采集最新数据并重训模型
+# ============================================================
+def run_data_update(cmd: list, label: str):
+    """在侧边栏内运行数据更新子进程，并实时滚动显示输出。"""
+    import subprocess
+
+    PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+    log_box = st.empty()
+    lines: List[str] = []
+
+    def _push(text: str):
+        lines.append(text)
+        # 只保留最近 80 行，避免界面卡顿
+        log_box.code("\n".join(lines[-80:]), language=None)
+
+    log_box.code(f"⏳ {label} 启动中...", language=None)
+    t0 = time.time()
+    try:
+        proc = subprocess.Popen(
+            cmd, cwd=PROJECT_ROOT,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, encoding="utf-8", errors="replace",
+        )
+        assert proc.stdout is not None
+        for raw in proc.stdout:
+            _push(raw.rstrip("\n"))
+        rc = proc.wait()
+    except Exception as e:
+        st.error(f"更新进程异常: {e}")
+        return
+
+    elapsed = time.time() - t0
+    if rc == 0:
+        st.success(f"✅ {label} 完成（耗时 {elapsed:.0f} 秒），刷新页面后使用最新数据。")
+        st.balloons()
+    else:
+        st.error(f"❌ {label} 失败（退出码 {rc}，耗时 {elapsed:.0f} 秒），详见上方日志。")
+
+
+def render_data_update():
+    """渲染侧边栏 — 点击按钮即可采集最新成交数据并重训模型（无需命令行）。"""
+    with st.sidebar:
+        st.markdown("---")
+        with st.expander("🔄 更新数据（采集 + 重训）", expanded=False):
+            st.caption("点击按钮在线采集最新成交数据，可选采集后自动重训模型。")
+            mode = st.radio(
+                "采集来源",
+                ["仅卡淘（国内网络推荐）", "完整更新（eBay + 卡淘）"],
+                index=0,
+                key="update_mode",
+            )
+            retrain = st.checkbox("采集后自动重训模型", value=True, key="update_retrain")
+
+            cmd = [sys.executable, os.path.join("scripts", "update_all.py")]
+            if mode.startswith("仅卡淘"):
+                cmd.append("--skip-ebay")
+            if not retrain:
+                cmd.append("--skip-retrain")
+
+            if st.button("🚀 开始更新数据", key="btn_data_update",
+                         use_container_width=True, type="primary"):
+                label = "数据更新" if retrain else "数据采集"
+                with st.spinner("正在执行，请稍候（采集约需几分钟）..."):
+                    run_data_update(cmd, label)
+
+            if st.button("🏋️ 仅重训模型（用现有数据）", key="btn_retrain_only",
+                         use_container_width=True):
+                with st.spinner("正在重训模型..."):
+                    run_data_update([sys.executable, "train.py"], "模型重训")
+
+            st.caption("日志同时写入 logs/ 目录；首次采集 eBay 需先运行 "
+                       "`venv\\Scripts\\python -m playwright install chromium`。")
+
+
+# ============================================================
 # 输入表单
 # ============================================================
 def render_input_form():
@@ -1685,6 +1760,9 @@ def main():
 
     # ---- 侧边栏：卡淘真实成交参考 ----
     render_sidebar_samples()
+
+    # ---- 侧边栏：一键采集最新数据并重训模型 ----
+    render_data_update()
 
     st.success("✅ 模型已就绪 — 在左侧填写卡片属性，或从侧边栏选择参考样本快速体验")
 
