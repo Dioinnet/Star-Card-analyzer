@@ -30,7 +30,8 @@ import time
 # 页面配置（必须是第一个st命令）
 st.set_page_config(
     page_title="球星卡价值分析系统",
-    page_icon="🏀",
+    page_icon=os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "assets", "app_icon.png"),
     layout="wide",
     initial_sidebar_state="expanded",  # 默认展开侧边栏（展示参考样本）
 )
