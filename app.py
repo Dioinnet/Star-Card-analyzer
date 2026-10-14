@@ -93,6 +93,19 @@ GRADER_OPTIONS = {
 # 年份范围：覆盖退役球星新秀卡（Kobe 1996 / Jordan 1984 等），2024 为最新系列年
 YEAR_RANGE = list(range(2024, 1979, -1))
 
+APP_ICON_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             "assets", "app_icon.png")
+
+
+def _load_icon_b64() -> str:
+    """读取应用图标为 base64（用于内联 HTML，避免路径依赖）；缺失时返回空串"""
+    import base64
+    try:
+        with open(APP_ICON_PATH, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except OSError:
+        return ""
+
 
 # ============================================================
 # 自定义 CSS — 琉璃渐变 + 玻璃态风格
@@ -413,8 +426,137 @@ def inject_custom_css():
         color: #0f172a;
     }}
 
+    /* ===== 品牌头部 ===== */
+    .brand-header {{
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 6px 4px 10px 4px;
+    }}
+    .brand-header img {{
+        border-radius: 14px;
+        box-shadow: 0 4px 14px rgba(15,23,42,0.18);
+    }}
+    .brand-title {{
+        font-size: 1.7em;
+        font-weight: 700;
+        color: #0f172a;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+    }}
+    .brand-tagline {{
+        color: {text_secondary};
+        font-size: 13px;
+        margin-top: 2px;
+    }}
+    .brand-badge {{
+        display: inline-block;
+        margin-left: 8px;
+        padding: 2px 10px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #0f766e;
+        background: rgba(45,212,191,0.15);
+        border: 1px solid rgba(45,212,191,0.4);
+        vertical-align: middle;
+    }}
+
+    /* ===== 步骤指引条 ===== */
+    .step-bar {{
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin: 4px 0 6px 0;
+    }}
+    .step-chip {{
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 14px 6px 8px;
+        border-radius: 22px;
+        background: {bg_glass};
+        border: 1px solid {border_color};
+        font-size: 13px;
+        font-weight: 500;
+        color: {text_primary};
+    }}
+    .step-num {{
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, {glaze_teal}, {glaze_blue});
+        color: #fff;
+        font-size: 12px;
+        font-weight: 700;
+        flex-shrink: 0;
+    }}
+    .step-arrow {{
+        color: {text_tertiary};
+        font-size: 14px;
+    }}
+
+    /* ===== 表单分组标签 ===== */
+    .section-label {{
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 700;
+        color: #0f172a;
+        padding: 10px 0 4px 0;
+    }}
+    .section-num {{
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 22px;
+        height: 22px;
+        padding: 0 4px;
+        border-radius: 6px;
+        background: rgba(96,165,250,0.15);
+        border: 1px solid rgba(96,165,250,0.35);
+        color: #1d4ed8;
+        font-size: 11px;
+        font-weight: 700;
+    }}
+
+    /* ===== 侧边栏品牌区 ===== */
+    .sidebar-brand {{
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 2px 10px 2px;
+    }}
+    .sidebar-brand img {{
+        border-radius: 10px;
+    }}
+    .sidebar-brand-name {{
+        font-size: 15px;
+        font-weight: 700;
+        color: #0f172a;
+        line-height: 1.2;
+    }}
+    .sidebar-brand-sub {{
+        font-size: 11px;
+        color: {text_secondary};
+    }}
+    .sidebar-section {{
+        font-size: 12px;
+        font-weight: 700;
+        color: {text_tertiary};
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 6px 2px 2px 2px;
+    }}
+
     @media (max-width: 768px) {{
         .price-value {{ font-size: 2em; }}
+        .brand-title {{ font-size: 1.3em; }}
     }}
     </style>
     """
@@ -1034,7 +1176,8 @@ def render_sidebar_samples():
       * 卡淘无数据才回退内置模拟样本
     """
     with st.sidebar:
-        st.header("🏀 真实成交参考")
+        st.markdown('<div class="sidebar-section">📋 真实成交参考</div>',
+                    unsafe_allow_html=True)
 
         samples = load_cardhobby_recent_samples(n=5)
         use_real = len(samples) > 0
@@ -1144,6 +1287,31 @@ def render_data_update():
 
 
 # ============================================================
+# 通用 UI 小组件
+# ============================================================
+def section_label(num: str, icon: str, text: str):
+    """表单分组标签：编号 + 图标 + 名称，保证视觉层级一致"""
+    st.markdown(
+        f'<div class="section-label"><span class="section-num">{num}</span>'
+        f'<span>{icon}</span><span>{text}</span></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_sidebar_brand():
+    """侧边栏顶部品牌标识"""
+    b64 = _load_icon_b64()
+    img_html = (f'<img src="data:image/png;base64,{b64}" width="40">' if b64
+                else '<span style="font-size:32px;">🏀</span>')
+    st.sidebar.markdown(
+        f'<div class="sidebar-brand">{img_html}'
+        f'<div><div class="sidebar-brand-name">球星卡价值分析</div>'
+        f'<div class="sidebar-brand-sub">Star Card Analyzer</div></div></div>',
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
 # 输入表单
 # ============================================================
 def render_input_form():
@@ -1152,7 +1320,7 @@ def render_input_form():
 
     with st.container(border=True):
         # ---- 球员 & 系列 ----
-        st.markdown("**🏀 球员 & 系列**")
+        section_label("01", "🏀", "球员与系列")
 
         # 从 session_state 获取默认值
         # 选项 = 本地 505 人 + AI 助手动态加入的球员（点击案例/联网识别产生）
@@ -1272,7 +1440,7 @@ def render_input_form():
             )
 
         # ---- 折射 & 编号 ----
-        st.markdown("**✨ 折射 & 编号**")
+        section_label("02", "✨", "折射与编号")
         ref_labels = list(REFRACTION_OPTIONS.keys())
         ref_idx = ref_labels.index(st.session_state["sel_refraction"]) if st.session_state["sel_refraction"] in ref_labels else 0
 
@@ -1308,8 +1476,8 @@ def render_input_form():
             is_jersey_match = True
             st.info(f"🎯 检测到同背编号！(#{serial_number}/{serial_max} 匹配 {player_name} 的球衣号 #{player_jersey})")
 
-        # ---- 签字 ----
-        st.markdown("**🖊️ 签字信息**")
+        # ---- 签字 & 物料 ----
+        section_label("03", "🖊️", "签字与物料")
         auto_labels = list(AUTO_OPTIONS.keys())
         auto_idx = auto_labels.index(st.session_state["sel_auto"]) if st.session_state["sel_auto"] in auto_labels else 0
 
@@ -1323,7 +1491,6 @@ def render_input_form():
         has_auto, auto_type = AUTO_OPTIONS[auto_label]
 
         # ---- 物料 ----
-        st.markdown("**🧵 实物物料**")
         has_material = st.checkbox(
             "含实物物料 (Patch/Jersey)", value=st.session_state["sel_has_material"],
             key="widget_has_mat",
@@ -1385,7 +1552,7 @@ def render_input_form():
             material_source = MATERIAL_SOURCE_OPTIONS[material_source_label]
 
         # ---- 评级 ----
-        st.markdown("**📊 评级信息**")
+        section_label("04", "📊", "评级信息")
         grader_labels = list(GRADER_OPTIONS.keys())
         grader_idx = grader_labels.index(st.session_state["sel_grader"]) if st.session_state["sel_grader"] in grader_labels else 0
 
@@ -1736,9 +1903,28 @@ def render_results(card_dict, result):
 # 页面头部
 # ============================================================
 def render_header():
-    """渲染页面标题"""
-    st.title("🏀 球星卡价值分析系统")
-    st.caption("基于 XGBoost 机器学习模型 & SHAP 可解释性分析的球星卡智能估价工具")
+    """渲染品牌头部：图标 + 标题 + 副标题 + 三步操作指引"""
+    b64 = _load_icon_b64()
+    img_html = (f'<img src="data:image/png;base64,{b64}" width="64">' if b64
+                else '<span style="font-size:52px;">🏀</span>')
+    st.markdown(
+        f'<div class="brand-header">{img_html}'
+        f'<div><div class="brand-title">球星卡价值分析系统'
+        f'<span class="brand-badge">XGBoost · SHAP</span></div>'
+        f'<div class="brand-tagline">基于 XGBoost 机器学习模型与 SHAP 可解释性分析的球星卡智能估价'
+        f'工具 · eBay / 卡淘真实市场数据驱动</div></div></div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="step-bar">'
+        '<div class="step-chip"><span class="step-num">1</span>选择参考样本或填写卡片属性</div>'
+        '<span class="step-arrow">→</span>'
+        '<div class="step-chip"><span class="step-num">2</span>点击「开始评估」</div>'
+        '<span class="step-arrow">→</span>'
+        '<div class="step-chip"><span class="step-num">3</span>查看估价 · 归因 · 卡淘成交参考</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
     st.markdown("---")
 
 
@@ -1759,13 +1945,15 @@ def main():
             st.info("请先运行 `python train.py` 训练模型，然后再启动 Streamlit。")
             st.stop()
 
-    # ---- 侧边栏：卡淘真实成交参考 ----
+    # ---- 侧边栏：品牌标识 → 卡淘真实成交参考 → 数据更新 ----
+    render_sidebar_brand()
     render_sidebar_samples()
 
     # ---- 侧边栏：一键采集最新数据并重训模型 ----
     render_data_update()
 
-    st.success("✅ 模型已就绪 — 在左侧填写卡片属性，或从侧边栏选择参考样本快速体验")
+    st.success("✅ 模型已就绪 — 按顶部三步操作：选择卡片 → 开始评估 → 查看结果；"
+               "也可以从侧边栏选择参考样本快速体验")
 
     # 左右分栏
     col_left, col_right = st.columns([1, 1.1])
