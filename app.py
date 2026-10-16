@@ -2174,15 +2174,58 @@ def main():
                 )
 
         # ---- AI 估价助手（始终可见；未配置 LLM Key 时降级） ----
-        render_agent_chat()
+        render_agent_chat(card_dict)
 
 
-def render_agent_chat():
+def _format_card_context(card_dict: dict) -> str:
+    """把当前表单卡片格式化为给 LLM 的系统上下文（自然语言摘要 + 原始 JSON 供工具调用）"""
+    import json
+
+    serial = (f"{card_dict.get('serial_number', 0)}/{card_dict.get('serial_max', 0)}"
+              if card_dict.get("serial_max") else "未编号")
+    grade_txt = card_dict.get("grade_grader_name", "未评级")
+    if card_dict.get("has_grade"):
+        grade_txt += f" {card_dict.get('grade_score', '')}"
+
+    return "\n".join([
+        "【界面同步的当前卡片】用户左侧表单当前填写的卡片信息如下。用户提到"
+        "“这张卡 / 当前卡片”时以此为准；调用 evaluate_card 工具可直接使用"
+        "下方 JSON 的字段值：",
+        f"- 球员: {card_dict.get('player_name', '')}"
+        f"（{card_dict.get('player_team') or '球队未知'}）",
+        f"- 系列/年份: {card_dict.get('product', '')} {card_dict.get('card_year', '')}"
+        f"{' 新秀RC' if card_dict.get('is_rookie') else ''}",
+        f"- 折射: {card_dict.get('refraction_name', '')}；编号: {serial}",
+        f"- 签字: {card_dict.get('auto_type_name', '无签字')}；"
+        f"含物料: {'是' if card_dict.get('has_material') else '否'}",
+        f"- 评级: {grade_txt}",
+        "原始属性 JSON: " + json.dumps(card_dict, ensure_ascii=False),
+    ])
+
+
+def render_agent_chat(card_dict=None):
     """AI 估价助手聊天面板：OpenAI 兼容 LLM + function calling"""
     st.container(border=True)
 
     st.markdown("### 🤖 AI 估价助手")
     st.caption("可以和 AI 对话评估卡片、识别冷门球员、查询卡淘成交参考")
+
+    # ---- 卡片信息同步开关 ----
+    sync_card = False
+    if card_dict:
+        sync_card = st.checkbox(
+            "🔗 同步当前表单卡片信息",
+            value=True,
+            key="agent_sync_card",
+            help="开启后，每次发送都会把左侧表单当前填写的卡片带给 AI，"
+                 "可以直接问“帮我评估这张卡”",
+        )
+        if sync_card:
+            st.caption(
+                f"已同步：{card_dict.get('player_name', '')} · "
+                f"{card_dict.get('product', '')} {card_dict.get('card_year', '')} · "
+                f"{card_dict.get('refraction_name', '')}"
+                + (" · RC" if card_dict.get("is_rookie") else ""))
 
     # ---- 会话状态初始化 ----
     if "agent_messages" not in st.session_state:
@@ -2236,7 +2279,10 @@ def render_agent_chat():
             {"role": "user", "content": user_input.strip()})
         with st.spinner("AI 助手思考中（可能需要联网查询卡淘）..."):
             from src.assistant.agent import CardAgent
-            result = CardAgent().chat(st.session_state.agent_messages)
+            context = (_format_card_context(card_dict)
+                       if (sync_card and card_dict) else "")
+            result = CardAgent().chat(st.session_state.agent_messages,
+                                      context=context)
         st.session_state.agent_messages.append(
             {"role": "assistant", "content": result["reply"]})
         st.session_state.agent_last_tool_calls = result["tool_calls"]

@@ -241,13 +241,15 @@ class CardAgent:
     # 对话主循环
     # ============================================================
 
-    def chat(self, messages: List[Dict[str, Any]], max_tool_rounds: int = 4) -> Dict[str, Any]:
+    def chat(self, messages: List[Dict[str, Any]], max_tool_rounds: int = 4,
+             context: str = "") -> Dict[str, Any]:
         """
         单轮对话（内部可能多轮工具调用）
 
         Args:
             messages: OpenAI 风格消息列表（session 已含 system/user/assistant/tool 历史）
             max_tool_rounds: 工具调用轮数上限（防死循环）
+            context: 附加系统上下文（如界面同步的当前卡片信息），拼在系统提示之后
 
         Returns:
             {reply, tool_calls(已执行记录), degraded}
@@ -257,7 +259,8 @@ class CardAgent:
 
         history = list(messages)[-_MAX_HISTORY:]
         if not any(m.get("role") == "system" for m in history):
-            history = [{"role": "system", "content": SYSTEM_PROMPT}] + history
+            system_content = SYSTEM_PROMPT + (f"\n\n{context}" if context else "")
+            history = [{"role": "system", "content": system_content}] + history
 
         client = self._make_client()
         if client is None:
